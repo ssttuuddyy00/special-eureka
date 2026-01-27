@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FX Replay Pro Fix</title>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        body { margin: 0; background: #131722; color: white; font-family: sans-serif; overflow: hidden; position: fixed; width: 100%; touch-action: manipulation; }
+        #chart-container { width: 100vw; height: 45vh; }
+        #tf-bar { display: flex; background: #1e222d; padding: 4px; justify-content: space-around; border-bottom: 1px solid #363a45; }
+        .tf-btn { background: #363a45; border: none; color: white; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+        .tf-btn.active { background: #2962ff; font-weight: bold; }
+        #controls { height: 40vh; padding: 8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; background: #1e222d; }
+        button { border: none; border-radius: 6px; font-weight: bold; font-size: 14px; color: white; padding: 12px 0; cursor: pointer; }
+        .info { grid-column: span 3; display: flex; justify-content: space-between; font-size: 12px; background: #2a2e39; padding: 6px; border-radius: 4px; }
+        #msg { grid-column: span 3; color: #ffd54f; font-size: 10px; text-align: center; height: 14px; }
+    </style>
+</head>
+<body>
+
+<div id="tf-bar">
+    <button class="tf-btn" onclick="switchTF('D1')">D1</button>
+    <button class="tf-btn" onclick="switchTF('H1')">H1</button>
+    <button class="tf-btn" onclick="switchTF('M15')">M15</button>
+    <button class="tf-btn active" onclick="switchTF('M5')">M5</button>
+</div>
+<div id="chart-container"></div>
+<div id="controls">
+    <div class="info">
+        <span id="stat-bal">¥1,500,000</span>
+        <span id="stat-time">Ready</span>
+    </div>
+    <button id="init-btn" class="tf-btn" style="background: #2962ff; grid-column: span 3;" onclick="initStart()">初期読込開始</button>
+    <button class="tf-btn" style="background: #4caf50; grid-column: span 3;" onclick="moveNext()">Next ▶</button>
+    <div id="msg">ライブラリ読込中...</div>
+</div>
+
+<script>
+// --- [重要] ここにあなたのGASウェブアプリURLを貼ってください ---
+const GAS_REPORT_URL = "https://script.google.com/macros/s/AKfycbxsc2Yu7oXoOCA_xZgYO5Ldx1Pv_2Qeq22xc2qTxkgmuQyddMhh-lvKMdZk1ID0fHRR/exec"; 
+
+const manifest = [
+    { tf: 'M5', id: '17kY7T-msnYamBmJ4fdaeSMsEHyr-TSoBQf51Q4i_bi4', gid: '1822534186', start: 1072947600, end: 1351918200 },
+    { tf: 'M5', id: '1h8Ip5VKMvAGZyBTXry0MLwL2rdsiOrEbcGU4lZ4QDaQ', gid: '1338035118', start: 1351918500, end: 1632422700 },
+    { tf: 'M5', id: '1UnhpXlNFK7DFfpSOJr-iD0BB-bpiBNF0uGfBL6uQZSE', gid: '674398137', start: 1632423000, end: 1740387300 },
+    { tf: 'M15', id: '1YEzu1nCZHUpW7BTI2OmO-hxePNokxnBJuXV5fyv9y0Q', gid: '1282687990', start: 0, end: 9999999999 },
+    { tf: 'H1', id: '1VuthArqrchjtZMY_LjeRG5R_KFMRxENB58mHSKHRbYI', gid: '461420276', start: 0, end: 9999999999 },
+    { tf: 'D1', id: '1B4oDA5qPBzWTGRR2keiEWTOTYKEcdtE9dWpThvz2mQo', gid: '1728877024', start: 0, end: 9999999999 }
+];
+
+let datasets = { D1:[], H1:[], M15:[], M5:[], M1:[] };
+let currentGids = { D1:null, H1:null, M15:null, M5:null, M1:null };
+let activeTF = 'M5';
+let curTime = 1072947600; 
+let chart, candleSeries;
+
+// チャート初期化関数
+function initChart() {
+    try {
+        const container = document.getElementById('chart-container');
+        if (!container) return;
+
+        // すでにチャートがある場合は削除して再作成
+        if (chart) {
+            container.innerHTML = '';
+        }
+
+        chart = LightweightCharts.createChart(container, {
+            width: container.clientWidth,
+            height: container.clientHeight,
+            layout: { background: { color: '#131722' }, textColor: '#d1d4dc' },
+            timeScale: { timeVisible: true }
+        });
+        
+        // メソッドが存在するか確認しながら追加
+        if (typeof chart.addCandlestickSeries === 'function') {
+            candleSeries = chart.addCandlestickSeries({
+                upColor: '#26a69a', downColor: '#ef5350'
+            });
+        } else if (typeof chart.addSeries === 'function') {
+            candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
+                upColor: '#26a69a', downColor: '#ef5350'
+            });
+        }
+
+        document.getElementById('msg').innerText = "チャート準備完了！";
+        document.getElementById('init-btn').disabled = false;
+        console.log("Chart initialized successfully");
+    } catch (e) {
+        console.error("Init Error Detail:", e);
+        document.getElementById('msg').innerText = "初期化失敗: " + e.message;
+    }
+}
+function setupChart() {
+    try {
+        const container = document.getElementById('chart-container');
+        // チャートの初期化
+        chart = LightweightCharts.createChart(container, {
+            width: container.clientWidth,
+            height: container.clientHeight,
+            layout: { background: { color: '#131722' }, textColor: '#d1d4dc' },
+            timeScale: { timeVisible: true }
+        });
+        
+        // バージョン違いを吸収する書き方
+        candleSeries = chart.addCandlestickSeries({
+            upColor: '#26a69a', downColor: '#ef5350'
+        });
+
+        document.getElementById('msg').innerText = "準備完了！初期読込を押してください。";
+        document.getElementById('init-btn').disabled = false;
+    } catch (e) {
+        console.error("Chart Setup Error:", e);
+        document.getElementById('msg').innerText = "チャート初期化失敗: " + e.message;
+    }
+}
+
+async function ensureData() {
+    const target = manifest.find(m => curTime >= m.start && curTime <= m.end);
+    if(!target) { alert("範囲外の日付です"); return; }
+    
+    const url = `${GAS_REPORT_URL}?id=${target.id}&gid=${target.gid}`;
+    document.getElementById('msg').innerText = "データ取得中...";
+
+    try {
+        const res = await fetch(url);
+        const text = await res.text();
+        
+        // ここでコンソールに中身を出す（原因特定のため）
+        console.log("Raw CSV Data (first 100 chars):", text.substring(0, 100));
+
+        const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+        
+        // 区切り文字を判別 (カンマかセミコロンか)
+        const delimiter = lines[0].includes(',') ? ',' : (lines[0].includes(';') ? ';' : '\t');
+        console.log("Detected delimiter:", delimiter);
+
+        dataCache = lines.map((row, index) => {
+            const c = row.split(delimiter).map(s => s.trim().replace(/"/g, ''));
+            
+            // デバッグ：中身が本当に数値か確認
+            if (index === 1) console.log("First data row sample:", c);
+
+            // Year(c[0])が数値でない場合は飛ばす（見出し行対策）
+            if (isNaN(parseInt(c[0]))) return null;
+
+            try {
+                // 列番号の指定 (Year:0, Month:1, Day:2, Hour:4, Open:6, High:7, Low:8, Close:9, Minute:最後)
+                const year = parseInt(c[0]);
+                const month = parseInt(c[1]) - 1;
+                const day = parseInt(c[2]);
+                const hour = parseInt(c[4]);
+                const minute = parseInt(c[c.length - 1]);
+
+                const d = new Date(year, month, day, hour, minute);
+                const ts = d.getTime() / 1000;
+
+                return { 
+                    time: ts, 
+                    open: parseFloat(c[6]), 
+                    high: parseFloat(c[7]), 
+                    low: parseFloat(c[8]), 
+                    close: parseFloat(c[9]) 
+                };
+            } catch (e) { return null; }
+        }).filter(d => d && !isNaN(d.time) && !isNaN(d.close));
+
+        if(dataCache.length > 0) {
+            dataCache.sort((a, b) => a.time - b.time);
+            document.getElementById('msg').innerText = "読込完了: " + dataCache.length + "件";
+        } else {
+            document.getElementById('msg').innerText = "0件：CSVの形式が違います。";
+        }
+    } catch (e) {
+        document.getElementById('msg').innerText = "取得失敗: " + e.message;
+    }
+}
+
+function render() {
+    if (!candleSeries || dataCache.length === 0) return;
+    const visible = dataCache.filter(d => d.time <= curTime).slice(-100);
+    if (visible.length > 0) {
+        candleSeries.setData(visible);
+        chart.timeScale().fitContent();
+    }
+}
+
+async function initStart() {
+    await ensureData();
+    render();
+}
+
+async function moveNext() {
+    curTime += (activeTF === 'M5' ? 300 : 3600);
+    await ensureData(curTime, activeTF);
+    render();
+}
+
+
+function switchTF(tf) {
+    activeTF = tf;
+    document.querySelectorAll('.tf-btn').forEach(b => b.classList.toggle('active', b.innerText === tf));
+    ensureData(curTime, tf).then(() => render());
+}
+
+function updateMsg(m) { document.getElementById('msg').innerText = m; }
+
+// ライブラリの読み込み待ち処理
+const checkLib = setInterval(() => {
+    if (typeof LightweightCharts !== 'undefined') {
+        clearInterval(checkLib);
+        initChart();
+    }
+}, 100);
+
+</script>
+</body>
+</html>
