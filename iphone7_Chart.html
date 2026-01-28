@@ -120,58 +120,54 @@ function setupChart() {
 
 // 引数に id, gid をしっかり受け取るようにします
 async function ensureData(id, gid) {
-    if (!id || !gid) {
-        // IDが空の場合は現在の表示中マニフェストから取得を試みる
-        const current = manifest[curManifestIdx];
-        id = current.id;
-        gid = current.gid;
-    }
-
-    // 取得件数を2000件に制限（ここが爆速のポイント！）
     const rowStart = 1; 
     const rowCount = 2000; 
-    
     const url = `${GAS_REPORT_URL}?id=${id}&gid=${gid}&rowStart=${rowStart}&rowCount=${rowCount}`;
     
-    document.getElementById('msg').innerText = "データ取得中 (2000件制限)...";
+    document.getElementById('msg').innerText = "取得中...";
     
     try {
         const res = await fetch(url);
         const text = await res.text();
-        
         if (text.startsWith("Error")) throw new Error(text);
         
-        // CSV解析部分
         const lines = text.trim().split('\n');
-        dataCache = lines.map(line => {
+        let rawData = lines.map(line => {
             const cols = line.split(',');
-            if(cols.length < 9) return null;
+            if (cols.length < 9) return null;
             const [y, m, d, h, mn, o, h_pr, l, c] = cols.map(Number);
+            // 無効な行を除外
+            if (isNaN(y) || y === 0) return null;
             return {
-                time: new Date(Date.UTC(y, m - 1, d, h, mn)).getTime() / 1000,
+                time: Date.UTC(y, m - 1, d, h, mn) / 1000,
                 open: o, high: h_pr, low: l, close: c
             };
         }).filter(item => item !== null);
 
-        // ★重要：時間を古い順に並べ替える
-        dataCache.sort((a, b) => a.time - b.time);
+        // ★重要：時間を古い順に並べ替え
+        rawData.sort((a, b) => a.time - b.time);
 
-        // チャートにセット
-        candleSeries.setData(dataCache);
+        // ★重要：重複した時間を削除
+        dataCache = rawData.filter((item, index, self) =>
+            index === self.findIndex((t) => t.time === item.time)
+        );
+
         document.getElementById('msg').innerText = `読込完了: ${dataCache.length}件`;
     } catch (e) {
-        document.getElementById('msg').innerText = "取得失敗: " + e.message;
-        console.error("Fetch Error:", e);
+        document.getElementById('msg').innerText = "失敗: " + e.message;
+        console.error(e);
     }
 }
-
 function render() {
-    if (!candleSeries || dataCache.length === 0) return;
-    const visible = dataCache.filter(d => d.time <= curTime).slice(-100);
-    if (visible.length > 0) {
-        candleSeries.setData(visible);
-        chart.timeScale().fitContent();
-    }
+    if (!dataCache || dataCache.length === 0) return;
+
+    // 既存のローソク足を一度消してセットし直す
+    candleSeries.setData(dataCache);
+
+    // ★重要：データの最後にズームする
+    chart.timeScale().fitContent(); 
+    
+    console.log("Rendered with data:", dataCache[0]);
 }
 
 async function initStart() {
