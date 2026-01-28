@@ -123,8 +123,7 @@ async function ensureData() {
     const res = await fetch(url);
     const text = await res.text();
     if(!target) { alert("範囲外の日付です"); return; }
-    
-    const url = `${GAS_REPORT_URL}?id=${target.id}&gid=${target.gid}`;
+   
     document.getElementById('msg').innerText = "データ取得中...";
 
     try {
