@@ -116,67 +116,45 @@ function setupChart() {
     }
 }
 
-async function ensureData() {
-    const target = manifest.find(m => curTime >= m.start && curTime <= m.end);
-    // 例：1行目から2000行分だけリクエスト
-    const url = `${GAS_REPORT_URL}?id=${id}&gid=${gid}&rowStart=1&rowCount=2000`;
-    const res = await fetch(url);
-    const text = await res.text();
-    if(!target) { alert("範囲外の日付です"); return; }
-   
-    document.getElementById('msg').innerText = "データ取得中...";
+// 引数に id, gid をしっかり受け取るようにします
+async function ensureData(id, gid) {
+    if (!id || !gid) {
+        // IDが空の場合は現在の表示中マニフェストから取得を試みる
+        const current = manifest[curManifestIdx];
+        id = current.id;
+        gid = current.gid;
+    }
 
+    // 取得件数を2000件に制限（ここが爆速のポイント！）
+    const rowStart = 1; 
+    const rowCount = 2000; 
+    
+    const url = `${GAS_REPORT_URL}?id=${id}&gid=${gid}&rowStart=${rowStart}&rowCount=${rowCount}`;
+    
+    document.getElementById('msg').innerText = "データ取得中 (2000件制限)...";
+    
     try {
         const res = await fetch(url);
         const text = await res.text();
         
-        // ここでコンソールに中身を出す（原因特定のため）
-        console.log("Raw CSV Data (first 100 chars):", text.substring(0, 100));
-
-        const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+        if (text.startsWith("Error")) throw new Error(text);
         
-        // 区切り文字を判別 (カンマかセミコロンか)
-        const delimiter = lines[0].includes(',') ? ',' : (lines[0].includes(';') ? ';' : '\t');
-        console.log("Detected delimiter:", delimiter);
+        // CSV解析
+        const lines = text.trim().split('\n');
+        dataCache = lines.map(line => {
+            const [y, m, d, h, mn, o, h_pr, l, c] = line.split(',').map(Number);
+            // データの不備チェック
+            if (isNaN(y)) return null;
+            return {
+                time: new Date(Date.UTC(y, m - 1, d, h, mn)).getTime() / 1000,
+                open: o, high: h_pr, low: l, close: c
+            };
+        }).filter(item => item !== null);
 
-        dataCache = lines.map((row, index) => {
-            const c = row.split(delimiter).map(s => s.trim().replace(/"/g, ''));
-            
-            // デバッグ：中身が本当に数値か確認
-            if (index === 1) console.log("First data row sample:", c);
-
-            // Year(c[0])が数値でない場合は飛ばす（見出し行対策）
-            if (isNaN(parseInt(c[0]))) return null;
-
-            try {
-                // 列番号の指定 (Year:0, Month:1, Day:2, Hour:4, Open:6, High:7, Low:8, Close:9, Minute:最後)
-                const year = parseInt(c[0]);
-                const month = parseInt(c[1]) - 1;
-                const day = parseInt(c[2]);
-                const hour = parseInt(c[4]);
-                const minute = parseInt(c[c.length - 1]);
-
-                const d = new Date(year, month, day, hour, minute);
-                const ts = d.getTime() / 1000;
-
-                return { 
-                    time: ts, 
-                    open: parseFloat(c[6]), 
-                    high: parseFloat(c[7]), 
-                    low: parseFloat(c[8]), 
-                    close: parseFloat(c[9]) 
-                };
-            } catch (e) { return null; }
-        }).filter(d => d && !isNaN(d.time) && !isNaN(d.close));
-
-        if(dataCache.length > 0) {
-            dataCache.sort((a, b) => a.time - b.time);
-            document.getElementById('msg').innerText = "読込完了: " + dataCache.length + "件";
-        } else {
-            document.getElementById('msg').innerText = "0件：CSVの形式が違います。";
-        }
+        document.getElementById('msg').innerText = `読込完了: ${dataCache.length}件`;
     } catch (e) {
         document.getElementById('msg').innerText = "取得失敗: " + e.message;
+        console.error("Fetch Error:", e);
     }
 }
 
