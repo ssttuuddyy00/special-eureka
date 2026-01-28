@@ -38,6 +38,7 @@
 
 <script>
 // --- [重要] ここにあなたのGASウェブアプリURLを貼ってください ---
+    
 const GAS_REPORT_URL = "https://script.google.com/macros/s/AKfycby-gwHn2FIFkXnE5lBUbn3BpocYBC85FGBYQD8yP8D0j2YpaB9m0Tvn4rxqpHltpWghGQ/exec"; 
 
 const manifest = [
@@ -54,6 +55,7 @@ let currentGids = { D1:null, H1:null, M15:null, M5:null, M1:null };
 let activeTF = 'M5';
 let curTime = 1072947600; 
 let chart, candleSeries;
+let curManifestIdx = 0; // ★これを追加！
 
 // チャート初期化関数
 function initChart() {
