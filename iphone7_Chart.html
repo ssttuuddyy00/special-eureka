@@ -39,7 +39,7 @@
 <script>
 // --- [重要] ここにあなたのGASウェブアプリURLを貼ってください ---
     
-const GAS_REPORT_URL = "https://script.google.com/macros/s/AKfycby-gwHn2FIFkXnE5lBUbn3BpocYBC85FGBYQD8yP8D0j2YpaB9m0Tvn4rxqpHltpWghGQ/exec"; 
+const GAS_REPORT_URL = "https://script.google.com/macros/s/AKfycbxdb3Ls5fD3G4cAFQck2ZQyqneJsaH67YLPFlNJ0s1ZX6A7PHzEXVJIZZ9d5ZAMXc17Cg/exec"; 
 
 const manifest = [
     { tf: 'M5', id: '17kY7T-msnYamBmJ4fdaeSMsEHyr-TSoBQf51Q4i_bi4', gid: '1822534186', start: 1072947600, end: 1351918200 },
@@ -141,18 +141,23 @@ async function ensureData(id, gid) {
         
         if (text.startsWith("Error")) throw new Error(text);
         
-        // CSV解析
+        // CSV解析部分
         const lines = text.trim().split('\n');
         dataCache = lines.map(line => {
-            const [y, m, d, h, mn, o, h_pr, l, c] = line.split(',').map(Number);
-            // データの不備チェック
-            if (isNaN(y)) return null;
+            const cols = line.split(',');
+            if(cols.length < 9) return null;
+            const [y, m, d, h, mn, o, h_pr, l, c] = cols.map(Number);
             return {
                 time: new Date(Date.UTC(y, m - 1, d, h, mn)).getTime() / 1000,
                 open: o, high: h_pr, low: l, close: c
             };
         }).filter(item => item !== null);
 
+        // ★重要：時間を古い順に並べ替える
+        dataCache.sort((a, b) => a.time - b.time);
+
+        // チャートにセット
+        candleSeries.setData(dataCache);
         document.getElementById('msg').innerText = `読込完了: ${dataCache.length}件`;
     } catch (e) {
         document.getElementById('msg').innerText = "取得失敗: " + e.message;
