@@ -39,7 +39,7 @@
 <script>
 // --- [重要] ここにあなたのGASウェブアプリURLを貼ってください ---
     
-const GAS_REPORT_URL = "https://script.google.com/macros/s/AKfycbxdb3Ls5fD3G4cAFQck2ZQyqneJsaH67YLPFlNJ0s1ZX6A7PHzEXVJIZZ9d5ZAMXc17Cg/exec"; 
+const GAS_REPORT_URL = "https://script.google.com/macros/s/AKfycbwEq9V-gGNIrC9DCDc2mqX7Pj7BRTxfdS32Qiy4gDBWehdKY8on_Q6NiRuF-h3f9jKjrw/exec"; 
 
 const manifest = [
     { tf: 'M5', id: '17kY7T-msnYamBmJ4fdaeSMsEHyr-TSoBQf51Q4i_bi4', gid: '1822534186', start: 1072947600, end: 1351918200 },
@@ -51,6 +51,7 @@ const manifest = [
 ];
 
 let datasets = { D1:[], H1:[], M15:[], M5:[], M1:[] };
+let dataCache = [];
 let currentGids = { D1:null, H1:null, M15:null, M5:null, M1:null };
 let activeTF = 'M5';
 let curTime = 1072947600; 
