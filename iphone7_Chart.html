@@ -50,13 +50,14 @@ const manifest = [
     { tf: 'D1', id: '1B4oDA5qPBzWTGRR2keiEWTOTYKEcdtE9dWpThvz2mQo', gid: '1728877024', start: 0, end: 9999999999 }
 ];
 
-let datasets = { D1:[], H1:[], M15:[], M5:[], M1:[] };
-let dataCache = [];
-let currentGids = { D1:null, H1:null, M15:null, M5:null, M1:null };
-let activeTF = 'M5';
-let curTime = 1072947600; 
+// --- データの入れ物 ---
+let dataCache = [];      // 読み込んだローソク足データを一時保存する場所
+let curTime = 1072947600; // 現在表示している時間（2004-01-01）
+let curManifestIdx = 0;  // 今、どのスプレッドシート（期間）を見ているか
+let activeTF = 'M5';     // 現在選択中の時間足（初期値M5）
+
+// --- チャート本体 ---
 let chart, candleSeries;
-let curManifestIdx = 0; // ★これを追加！
 
 // チャート初期化関数
 function initChart() {
